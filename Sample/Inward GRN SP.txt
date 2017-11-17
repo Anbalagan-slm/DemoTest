@@ -1,0 +1,184 @@
+Alter table Inward_GRN add Account_Status bit default(0) not null
+
+go
+------------------------------
+ --sp_WH_Inward_Report_New '2017-09-14','2017-11-14','6','-ALL-','-ALL-',''               
+           
+CREATE PROC [dbo].[sp_WH_Inward_GRN_Report_New]               
+@From_Date datetime,                                                                                   
+@To_date datetime,              
+@section_id varchar(10),                                                      
+@Carrier_Name varchar(250),     
+@status varchar(20),              
+@Ac_status varchar(20)              
+ as              
+ begin              
+               
+               
+ if @section_id = '0'                                                                           
+begin                                                                          
+set @section_id = '%'                                                                          
+end                                                                
+                                     
+if LTRIM(RTRIM(@Carrier_Name))='-ALL-'    
+begin    
+set @Carrier_Name ='%'     
+end    
+                                     
+--if LTRIM(RTRIM(@Carrier_Name))= '0'       
+--begin                                                                          
+--set LTRIM(RTRIM(@Carrier_Name))= '%'                                                                          
+--end              
+              
+              
+              
+if @status = '-ALL-'              
+begin               
+               
+       
+   select GRN_No, grn.GRN_Date ,Location_prefix + company_Section_prefix + '/' + CONVERT(varchar,GRN.Section_GRN_No)  as SECTION_GRN,              
+ grn.Supplier_Name,grn.Carrier_Name ,ISNULL(t.Transporter_No,0)Transporter_No,    
+ grn.LR_Serial_No ,isnull(grn.LR_Number,'') LR_No,             
+ Received_Bales,isnull(grn.Received_Bales_Value,0) LR_Amount, grn.cancelled,              
+ case when grn.Payment_Mode ='Credit' then 'Unpaid'                                                            
+ ELSE  'Paid'              
+ end status ,    
+ grn.Company_section_Id                
+  from Inward_GRN grn left join  Inward_LR il  on    
+  grn.LR_Serial_No=il.LR_Serial_No and  grn.LR_Number=il.LR_No              
+  left join Transporters t on t.Transporter_Name = grn.Carrier_Name    
+  JOIN Common..Company_Sections CS ON CS.Company_Section_Id =GRN.Company_section_id                
+  join Sales_locations sl on sl.sales_location_id = grn.Sales_location_id                
+  where GRN_Date between @From_Date and @To_date and grn.GRN_Type='T' and        
+  grn.Company_section_id like @section_id    
+  and isnull(convert(varchar, grn.Carrier_Name), '') like LTRIM(RTRIM(@Carrier_Name))    
+  --and isnull(convert(varchar, il.Transporter_No), '') like LTRIM(RTRIM(@Carrier_Name))             
+  and grn.Cancelled=0    
+       
+       
+  end         
+                
+ else if @status='ToPay'               
+  begin              
+                
+   if @Ac_status ='Paid'              
+    begin              
+      
+   select GRN_No, grn.GRN_Date ,Location_prefix + company_Section_prefix + '/' + CONVERT(varchar,GRN.Section_GRN_No)  as SECTION_GRN,              
+ grn.Supplier_Name,grn.Carrier_Name ,ISNULL(t.Transporter_No,0)Transporter_No,    
+ grn.LR_Serial_No ,isnull(grn.LR_Number,'') LR_No,             
+ Received_Bales,isnull(grn.Received_Bales_Value,0) LR_Amount, grn.cancelled,              
+ case when grn.Payment_Mode = 'Credit' and grn.Account_Status=1 then 'Paid'       
+ ELSE  'Unpaid'              
+ end status ,    
+ grn.Company_section_Id                
+  from Inward_GRN grn left join  Inward_LR il  on    
+  grn.LR_Serial_No=il.LR_Serial_No and  grn.LR_Number=il.LR_No              
+  left join Transporters t on t.Transporter_Name = grn.Carrier_Name    
+  JOIN Common..Company_Sections CS ON CS.Company_Section_Id =GRN.Company_section_id                
+  join Sales_locations sl on sl.sales_location_id = grn.Sales_location_id                
+  where GRN_Date between @From_Date and @To_date and grn.GRN_Type='T' and        
+  grn.Company_section_id like @section_id    
+  and isnull(convert(varchar, grn.Carrier_Name), '') like LTRIM(RTRIM(@Carrier_Name))    
+  --and isnull(convert(varchar, il.Transporter_No), '') like LTRIM(RTRIM(@Carrier_Name))             
+  and grn.Cancelled=0 and grn.Account_Status=1    
+      
+    end              
+                
+  else              
+  begin     
+      
+      
+   select GRN_No, grn.GRN_Date ,Location_prefix + company_Section_prefix + '/' + CONVERT(varchar,GRN.Section_GRN_No)  as SECTION_GRN,              
+ grn.Supplier_Name,grn.Carrier_Name ,ISNULL(t.Transporter_No,0)Transporter_No,    
+ grn.LR_Serial_No ,isnull(grn.LR_Number,'') LR_No,             
+ Received_Bales,isnull(grn.Received_Bales_Value,0) LR_Amount, grn.cancelled,              
+ case when grn.Payment_Mode = 'Credit' and grn.Account_Status=0 then 'Unpaid'       
+ ELSE  'Paid'              
+ end status ,    
+ grn.Company_section_Id                
+  from Inward_GRN grn left join  Inward_LR il  on    
+  grn.LR_Serial_No=il.LR_Serial_No and  grn.LR_Number=il.LR_No              
+  left join Transporters t on t.Transporter_Name = grn.Carrier_Name    
+  JOIN Common..Company_Sections CS ON CS.Company_Section_Id =GRN.Company_section_id                
+  join Sales_locations sl on sl.sales_location_id = grn.Sales_location_id                
+  where GRN_Date between @From_Date and @To_date and grn.GRN_Type='T' and        
+  grn.Company_section_id like @section_id    
+  and isnull(convert(varchar, grn.Carrier_Name), '') like LTRIM(RTRIM(@Carrier_Name))    
+ --and isnull(convert(varchar, il.Transporter_No), '') like LTRIM(RTRIM(@Carrier_Name))             
+  and grn.Cancelled=0 and grn.Account_Status=0    
+  and grn.Payment_Mode not in ('Cash','Party Paid','By Hand')    
+          
+  end              
+ end              
+               
+ else if @status='Paid'              
+  begin              
+    
+  select GRN_No, grn.GRN_Date ,Location_prefix + company_Section_prefix + '/' + CONVERT(varchar,GRN.Section_GRN_No)  as SECTION_GRN,              
+ grn.Supplier_Name,grn.Carrier_Name ,ISNULL(t.Transporter_No,0)Transporter_No,    
+ grn.LR_Serial_No ,isnull(grn.LR_Number,'') LR_No,             
+ Received_Bales,isnull(grn.Received_Bales_Value,0) LR_Amount, grn.cancelled,              
+ case when grn.Payment_Mode <> 'Credit' then 'Paid'                                                            
+ ELSE  'Unpaid'              
+ end status ,    
+ grn.Company_section_Id                
+  from Inward_GRN grn left join  Inward_LR il  on    
+  grn.LR_Serial_No=il.LR_Serial_No and  grn.LR_Number=il.LR_No              
+  left join Transporters t on t.Transporter_Name = grn.Carrier_Name    
+  JOIN Common..Company_Sections CS ON CS.Company_Section_Id =GRN.Company_section_id                
+  join Sales_locations sl on sl.sales_location_id = grn.Sales_location_id                
+  where GRN_Date between @From_Date and @To_date and grn.GRN_Type='T' and        
+  grn.Company_section_id like @section_id    
+  and isnull(convert(varchar, grn.Carrier_Name), '') like LTRIM(RTRIM(@Carrier_Name))    
+  --and isnull(convert(varchar, il.Transporter_No), '') like LTRIM(RTRIM(@Carrier_Name))             
+  and grn.Cancelled=0     
+  and grn.Payment_Mode in ('Cash','Party Paid','By Hand')    
+  and grn.Account_Status=0    
+    
+        
+ end              
+               
+                
+end         
+        
+
+
+go
+
+---------------------------------------
+--exec sp_WH_Inward_Report_LR_Update @LR_No='864721',@Section_id=4,@Transporter_No=39      
+ Alter PROC [dbo].[sp_WH_Inward_Report_LR_Update_XML]         
+@LRDetails xml     
+      
+as        
+begin      
+    
+declare @i int     
+set @LRDetails=CONVERT(xml,@LRDetails)                                      
+ exec sp_xml_preparedocument @i output,@LRDetails                                      
+ select * into #LRDetails from OPENXML(@i,'ArrayOfInward_GRN/Inward_GRN',3)                                      
+ with                                      
+ (                                      
+ GRN_No int,
+ LR_Serial_No int,
+ GRN_Date date,    
+ LR_No varchar(20),                                  
+ Company_section_Id int,    
+ Transporter_No int    
+     
+ )                                      
+                                       
+ if @@ERROR<>0                                      
+ begin                                      
+ Raiserror('During Conversion XMl',16,1)                                      
+ Return 1                                      
+ end                                   
+    
+ update Inward_GRN set Account_Status = 1 from Inward_GRN                         
+  join #LRDetails on Inward_GRN.Company_section_id=  #LRDetails.Company_section_Id
+    and Inward_GRN.GRN_No= #LRDetails.GRN_No          
+      
+      
+end      
+         
